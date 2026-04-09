@@ -18,6 +18,17 @@ services:
       - ALERT_PHONE=${ALERT_PHONE}
     networks:
       - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vps-dashboard-http.rule=Host(`ops.glifodev.com`)"
+      - "traefik.http.routers.vps-dashboard-http.entryPoints=http"
+      - "traefik.http.routers.vps-dashboard-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.vps-dashboard-https.rule=Host(`ops.glifodev.com`)"
+      - "traefik.http.routers.vps-dashboard-https.entryPoints=https"
+      - "traefik.http.routers.vps-dashboard-https.tls=true"
+      - "traefik.http.routers.vps-dashboard-https.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vps-dashboard.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/login"]
