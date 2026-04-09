@@ -3,8 +3,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/backups:/opt/backups:ro
@@ -18,12 +16,18 @@ services:
       - EVO_API_KEY=${EVO_API_KEY}
       - EVO_INSTANCE=${EVO_INSTANCE}
       - ALERT_PHONE=${ALERT_PHONE}
+    networks:
+      - coolify
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/login"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+networks:
+  coolify:
+    external: true
 
 volumes:
   dashboard-data:
