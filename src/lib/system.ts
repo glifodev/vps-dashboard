@@ -1,5 +1,7 @@
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
+
+const PROC = existsSync("/host/proc/meminfo") ? "/host/proc" : "/proc";
 
 export interface SystemMetrics {
   cpu: { usage: number; cores: number };
@@ -15,7 +17,7 @@ export interface SystemMetrics {
 }
 
 export function getSystemMetrics(): SystemMetrics {
-  const memInfo = readFileSync("/proc/meminfo", "utf-8");
+  const memInfo = readFileSync(`${PROC}/meminfo`, "utf-8");
   const memMap = new Map<string, number>();
   for (const line of memInfo.split("\n")) {
     const match = line.match(/^(\w+):\s+(\d+)/);
@@ -27,10 +29,10 @@ export function getSystemMetrics(): SystemMetrics {
   const swapTotal = memMap.get("SwapTotal") ?? 0;
   const swapFree = memMap.get("SwapFree") ?? 0;
 
-  const loadAvg = readFileSync("/proc/loadavg", "utf-8").trim().split(" ");
-  const uptimeRaw = readFileSync("/proc/uptime", "utf-8").trim().split(" ");
+  const loadAvg = readFileSync(`${PROC}/loadavg`, "utf-8").trim().split(" ");
+  const uptimeRaw = readFileSync(`${PROC}/uptime`, "utf-8").trim().split(" ");
 
-  const cpuCount = readFileSync("/proc/cpuinfo", "utf-8")
+  const cpuCount = readFileSync(`${PROC}/cpuinfo`, "utf-8")
     .split("\n")
     .filter((l) => l.startsWith("processor")).length;
 
@@ -51,7 +53,7 @@ export function getSystemMetrics(): SystemMetrics {
 
   let cpuUsage = 0;
   try {
-    const stat1 = readFileSync("/proc/stat", "utf-8")
+    const stat1 = readFileSync(`${PROC}/stat`, "utf-8")
       .split("\n")[0]
       .split(/\s+/)
       .slice(1)
@@ -61,7 +63,7 @@ export function getSystemMetrics(): SystemMetrics {
 
     execSync("sleep 0.5");
 
-    const stat2 = readFileSync("/proc/stat", "utf-8")
+    const stat2 = readFileSync(`${PROC}/stat`, "utf-8")
       .split("\n")[0]
       .split(/\s+/)
       .slice(1)
