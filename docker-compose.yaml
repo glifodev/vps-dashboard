@@ -1,0 +1,29 @@
+services:
+  vps-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/backups:/opt/backups:ro
+      - /opt/maintenance:/opt/maintenance:ro
+      - /proc:/host/proc:ro
+      - dashboard-data:/data
+    environment:
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
+      - DASHBOARD_SECRET=${DASHBOARD_SECRET}
+      - EVO_API_URL=${EVO_API_URL}
+      - EVO_API_KEY=${EVO_API_KEY}
+      - EVO_INSTANCE=${EVO_INSTANCE}
+      - ALERT_PHONE=${ALERT_PHONE}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  dashboard-data:
