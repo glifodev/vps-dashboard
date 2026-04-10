@@ -20,15 +20,9 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.vps-dashboard-http.rule=Host(`ops.glifodev.com`)"
-      - "traefik.http.routers.vps-dashboard-http.entryPoints=http"
-      - "traefik.http.routers.vps-dashboard-http.middlewares=redirect-to-https"
-      - "traefik.http.routers.vps-dashboard-https.rule=Host(`ops.glifodev.com`)"
-      - "traefik.http.routers.vps-dashboard-https.entryPoints=https"
-      - "traefik.http.routers.vps-dashboard-https.tls=true"
-      - "traefik.http.routers.vps-dashboard-https.tls.certresolver=letsencrypt"
-      - "traefik.http.services.vps-dashboard.loadbalancer.server.port=3000"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.http-0-n2s6nqqdq3ewhxlugiwrpbcf-vps-dashboard.service=vps-dashboard-svc"
+      - "traefik.http.routers.https-0-n2s6nqqdq3ewhxlugiwrpbcf-vps-dashboard.service=vps-dashboard-svc"
+      - "traefik.http.services.vps-dashboard-svc.loadbalancer.server.port=3000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/login || exit 1"]
