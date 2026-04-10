@@ -5,6 +5,8 @@ const docker = new Docker({ socketPath: "/var/run/docker.sock" });
 export interface ContainerInfo {
   id: string;
   name: string;
+  rawName: string;
+  project: string | null;
   image: string;
   status: string;
   state: string;
@@ -15,6 +17,23 @@ export interface ContainerInfo {
   memoryLimit: number;
   cpuPercent: number;
   ports: Array<{ private: number; public: number; type: string }>;
+}
+
+function friendlyName(
+  rawName: string,
+  labels: Record<string, string>,
+): { name: string; project: string | null } {
+  const coolifyResource = labels["coolify.resourceName"];
+  const coolifyProject = labels["coolify.projectName"] ?? null;
+  if (coolifyResource) {
+    return { name: coolifyResource, project: coolifyProject };
+  }
+  const composeService = labels["com.docker.compose.service"];
+  const composeProject = labels["com.docker.compose.project"] ?? null;
+  if (composeService && !rawName.startsWith(composeService)) {
+    return { name: composeService, project: composeProject };
+  }
+  return { name: rawName, project: composeProject };
 }
 
 interface CachedContainers {
@@ -54,9 +73,14 @@ export async function listContainers(
 
   const results = await Promise.all(
     containers.map(async (c): Promise<ContainerInfo> => {
+      const rawName = c.Names[0]?.replace(/^\//, "") ?? c.Id.slice(0, 12);
+      const { name, project } = friendlyName(rawName, c.Labels ?? {});
+
       const base: ContainerInfo = {
         id: c.Id,
-        name: c.Names[0]?.replace(/^\//, "") ?? c.Id.slice(0, 12),
+        name,
+        rawName,
+        project,
         image: c.Image,
         status: c.Status,
         state: c.State,

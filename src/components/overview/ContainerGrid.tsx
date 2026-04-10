@@ -7,6 +7,7 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 interface ContainerInfo {
   id: string;
   name: string;
+  project: string | null;
   image: string;
   status: string;
   state: string;
@@ -20,22 +21,44 @@ function formatMb(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
 }
 
-function healthVariant(health: string): "healthy" | "warning" | "critical" | "default" {
+function healthVariant(
+  health: string,
+): "healthy" | "warning" | "critical" | "default" {
   switch (health) {
-    case "healthy": return "healthy";
-    case "running": return "warning";
-    case "unhealthy": case "stopped": return "critical";
-    default: return "default";
+    case "healthy":
+      return "healthy";
+    case "running":
+      return "warning";
+    case "unhealthy":
+    case "stopped":
+      return "critical";
+    default:
+      return "default";
   }
 }
 
-export function ContainerGrid({ containers }: { containers: ContainerInfo[] }) {
+export function ContainerGrid({
+  containers,
+}: {
+  containers: ContainerInfo[];
+}) {
   return (
     <div className="grid grid-cols-3 gap-3">
       {containers.map((c) => (
-        <Link key={c.id} href={`/containers/${c.id}`} className="rounded-lg bg-bg-card border border-border p-4 hover:bg-bg-card-hover transition-colors">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-text truncate max-w-[70%]">{c.name}</p>
+        <Link
+          key={c.id}
+          href={`/containers/${c.id}`}
+          className="rounded-lg bg-bg-card border border-border p-4 hover:bg-bg-card-hover transition-colors"
+        >
+          <div className="flex items-start justify-between mb-2 gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-text truncate">
+                {c.name}
+              </p>
+              {c.project && (
+                <p className="text-xs text-text-muted truncate">{c.project}</p>
+              )}
+            </div>
             <Badge variant={healthVariant(c.health)}>{c.health}</Badge>
           </div>
           {c.memoryLimit > 0 && (
@@ -44,7 +67,18 @@ export function ContainerGrid({ containers }: { containers: ContainerInfo[] }) {
                 <span>{formatMb(c.memoryUsage)}</span>
                 <span>{formatMb(c.memoryLimit)}</span>
               </div>
-              <ProgressBar value={c.memoryUsage} max={c.memoryLimit} variant={c.memoryUsage / c.memoryLimit > 0.85 ? "critical" : c.memoryUsage / c.memoryLimit > 0.7 ? "warning" : "healthy"} size="xs" />
+              <ProgressBar
+                value={c.memoryUsage}
+                max={c.memoryLimit}
+                variant={
+                  c.memoryUsage / c.memoryLimit > 0.85
+                    ? "critical"
+                    : c.memoryUsage / c.memoryLimit > 0.7
+                      ? "warning"
+                      : "healthy"
+                }
+                size="xs"
+              />
             </div>
           )}
           <p className="text-xs text-text-muted mt-2">CPU: {c.cpuPercent}%</p>
