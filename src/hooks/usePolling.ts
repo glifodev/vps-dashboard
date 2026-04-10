@@ -1,23 +1,42 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
-export function usePolling<T>(url: string, intervalMs: number = 5000): { data: T | null; loading: boolean; error: string | null; refetch: () => void } {
+interface PollingResult<T> {
+  data: T | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
+export function usePolling<T>(
+  url: string,
+  intervalMs: number = 5000,
+): PollingResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   const fetchData = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     try {
-      const res = await fetch(url);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Fetch failed");
+      if (e instanceof Error && e.name !== "AbortError") {
+        setError(e.message);
+      }
     } finally {
       setLoading(false);
+      inFlight.current = false;
     }
   }, [url]);
 

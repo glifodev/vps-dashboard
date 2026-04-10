@@ -17,73 +17,90 @@ export interface ContainerInfo {
   ports: Array<{ private: number; public: number; type: string }>;
 }
 
-export async function listContainers(): Promise<ContainerInfo[]> {
-  const containers = await docker.listContainers({ all: true });
-  const results: ContainerInfo[] = [];
+interface CachedContainers {
+  data: ContainerInfo[];
+  timestamp: number;
+}
 
-  for (const c of containers) {
-    let memoryUsage = 0;
-    let memoryLimit = 0;
-    let cpuPercent = 0;
+let containerCache: CachedContainers | null = null;
+const CACHE_TTL_MS = 4000;
 
-    if (c.State === "running") {
-      try {
-        const container = docker.getContainer(c.Id);
-        const stats = await container.stats({ stream: false });
-        memoryUsage = stats.memory_stats.usage ?? 0;
-        memoryLimit = stats.memory_stats.limit ?? 0;
+function healthFromStatus(state: string, status: string): string {
+  if (status.includes("healthy")) return "healthy";
+  if (status.includes("unhealthy")) return "unhealthy";
+  return state === "running" ? "running" : "stopped";
+}
 
-        const cpuDelta =
-          stats.cpu_stats.cpu_usage.total_usage -
-          stats.precpu_stats.cpu_usage.total_usage;
-        const systemDelta =
-          stats.cpu_stats.system_cpu_usage -
-          stats.precpu_stats.system_cpu_usage;
-        const numCpus = stats.cpu_stats.online_cpus ?? 1;
-        cpuPercent =
-          systemDelta > 0 ? (cpuDelta / systemDelta) * numCpus * 100 : 0;
-      } catch {
-        // Container may have stopped between list and stats
-      }
-    }
+function calculateCpuPercent(stats: Docker.ContainerStats): number {
+  const cpuDelta =
+    stats.cpu_stats.cpu_usage.total_usage -
+    stats.precpu_stats.cpu_usage.total_usage;
+  const systemDelta =
+    stats.cpu_stats.system_cpu_usage -
+    stats.precpu_stats.system_cpu_usage;
+  const numCpus = stats.cpu_stats.online_cpus ?? 1;
+  if (systemDelta <= 0) return 0;
+  return Math.round((cpuDelta / systemDelta) * numCpus * 100 * 100) / 100;
+}
 
-    const name = c.Names[0]?.replace(/^\//, "") ?? c.Id.slice(0, 12);
-    const health =
-      c.Status.includes("healthy")
-        ? "healthy"
-        : c.Status.includes("unhealthy")
-          ? "unhealthy"
-          : c.State === "running"
-            ? "running"
-            : "stopped";
-
-    results.push({
-      id: c.Id,
-      name,
-      image: c.Image,
-      status: c.Status,
-      state: c.State,
-      health,
-      uptime: c.Status,
-      created: c.Created,
-      memoryUsage,
-      memoryLimit,
-      cpuPercent: Math.round(cpuPercent * 100) / 100,
-      ports: (c.Ports ?? []).map((p) => ({
-        private: p.PrivatePort,
-        public: p.PublicPort ?? 0,
-        type: p.Type,
-      })),
-    });
+export async function listContainers(
+  includeStats = true,
+): Promise<ContainerInfo[]> {
+  if (containerCache && Date.now() - containerCache.timestamp < CACHE_TTL_MS) {
+    return containerCache.data;
   }
 
-  return results.sort((a, b) => {
+  const containers = await docker.listContainers({ all: true });
+
+  const results = await Promise.all(
+    containers.map(async (c): Promise<ContainerInfo> => {
+      const base: ContainerInfo = {
+        id: c.Id,
+        name: c.Names[0]?.replace(/^\//, "") ?? c.Id.slice(0, 12),
+        image: c.Image,
+        status: c.Status,
+        state: c.State,
+        health: healthFromStatus(c.State, c.Status),
+        uptime: c.Status,
+        created: c.Created,
+        memoryUsage: 0,
+        memoryLimit: 0,
+        cpuPercent: 0,
+        ports: (c.Ports ?? []).map((p) => ({
+          private: p.PrivatePort,
+          public: p.PublicPort ?? 0,
+          type: p.Type,
+        })),
+      };
+
+      if (!includeStats || c.State !== "running") return base;
+
+      try {
+        const stats = await docker
+          .getContainer(c.Id)
+          .stats({ stream: false });
+        return {
+          ...base,
+          memoryUsage: stats.memory_stats.usage ?? 0,
+          memoryLimit: stats.memory_stats.limit ?? 0,
+          cpuPercent: calculateCpuPercent(stats),
+        };
+      } catch {
+        return base;
+      }
+    }),
+  );
+
+  results.sort((a, b) => {
     const healthOrder = { unhealthy: 0, stopped: 1, running: 2, healthy: 3 };
     const aOrder = healthOrder[a.health as keyof typeof healthOrder] ?? 2;
     const bOrder = healthOrder[b.health as keyof typeof healthOrder] ?? 2;
     if (aOrder !== bOrder) return aOrder - bOrder;
     return b.memoryUsage - a.memoryUsage;
   });
+
+  containerCache = { data: results, timestamp: Date.now() };
+  return results;
 }
 
 export async function getContainerDetail(id: string) {
@@ -112,6 +129,7 @@ export async function getContainerLogs(
 export async function restartContainer(id: string): Promise<void> {
   const container = docker.getContainer(id);
   await container.restart();
+  containerCache = null;
 }
 
 export { docker };
