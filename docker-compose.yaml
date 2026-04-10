@@ -20,6 +20,7 @@ services:
       - coolify
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=coolify"
       - "traefik.http.routers.http-0-n2s6nqqdq3ewhxlugiwrpbcf-vps-dashboard.service=vps-dashboard-svc"
       - "traefik.http.routers.https-0-n2s6nqqdq3ewhxlugiwrpbcf-vps-dashboard.service=vps-dashboard-svc"
       - "traefik.http.services.vps-dashboard-svc.loadbalancer.server.port=3000"
